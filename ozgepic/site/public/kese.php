@@ -173,7 +173,7 @@ $token = $_GET['token'] ?? '';
   }
 
   .open-img   { opacity: 1; z-index: 1; }
-  .closed-img { opacity: 0; z-index: 1; }
+  .closed-img { opacity: 0; z-index: 1; width: 90%; height: 90%; top: 5%; left: 5%; }
 
   .prize-inside {
     position: absolute;
