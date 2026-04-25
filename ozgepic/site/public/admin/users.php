@@ -31,8 +31,20 @@ if (isset($_POST['ajax_delete_user'])) {
     $uid = (int)($_POST['userid'] ?? 0);
     if (!$uid) { echo json_encode(['success'=>false,'error'=>'No userid']); exit; }
     try {
+        // Собираем fp чеков пользователя перед удалением попыток
+        $fpStmt = $pdo->prepare("SELECT DISTINCT SUBSTRING_INDEX(transaction_number, '_', 1) AS fp FROM kese_attempts WHERE userid = ?");
+        $fpStmt->execute([$uid]);
+        $fps = $fpStmt->fetchAll(PDO::FETCH_COLUMN);
+
         $pdo->prepare("DELETE FROM kese_users WHERE userid = ?")->execute([$uid]);
         $pdo->prepare("DELETE FROM kese_attempts WHERE userid = ?")->execute([$uid]);
+
+        // Удаляем чеки из bot_used_transactions, чтобы можно было загрузить повторно
+        if ($fps) {
+            $placeholders = implode(',', array_fill(0, count($fps), '?'));
+            $pdo->prepare("DELETE FROM bot_used_transactions WHERE fp IN ($placeholders)")->execute($fps);
+        }
+
         // Сброс состояния бота (чтобы заново прошёл регистрацию)
         try { $pdo->prepare("DELETE FROM bot_user_states WHERE userid = ?")->execute([$uid]); } catch(PDOException $e) {}
         echo json_encode(['success'=>true]);
@@ -233,7 +245,7 @@ if ($view === 'receipts') {
     $rStmt = $pdo->prepare("
         SELECT bt.fp, bt.created_at AS receipt_at,
                a.id AS attempt_id, a.userid, a.numeric_token, a.session_num,
-               a.used, a.used_at, a.payment_amount,
+               a.used, a.used_at,
                u.name AS uname, u.surname AS usurname, u.phone AS uphone
         FROM bot_used_transactions bt
         $attemptPick
