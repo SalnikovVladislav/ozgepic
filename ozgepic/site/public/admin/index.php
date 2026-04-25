@@ -57,6 +57,18 @@ for ($s = 1; $s <= 3; $s++) {
     $pdo->prepare("INSERT IGNORE INTO kese_session_settings (session_num, mode) VALUES (?, 'probability')")->execute([$s]);
 }
 
+try { $pdo->exec("ALTER TABLE kese_prizes ADD COLUMN is_guide TINYINT NOT NULL DEFAULT 0"); } catch(PDOException $e){}
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS kese_session_guide_videos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_num TINYINT NOT NULL,
+    video_urls TEXT NULL,
+    UNIQUE KEY uq_session (session_num)
+) CHARACTER SET utf8mb4");
+for ($s = 1; $s <= 3; $s++) {
+    $pdo->prepare("INSERT IGNORE INTO kese_session_guide_videos (session_num, video_urls) VALUES (?, '')")->execute([$s]);
+}
+
 // Seed prizes
 $cnt = $pdo->query("SELECT COUNT(*) FROM kese_prizes")->fetchColumn();
 if ($cnt == 0) {
@@ -110,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($act === 'update_prize') {
         $id = (int)$_POST['prize_id']; $name = trim($_POST['name'] ?? '');
         $emoji = trim($_POST['emoji'] ?? '🎁'); $prob = floatval($_POST['probability'] ?? 1);
+        $isGuide = isset($_POST['is_guide']) ? 1 : 0;
         if (!$id || !$name) { $msg = 'Нет ID или названия!'; $msgType = 'error'; }
         else {
             if (!empty($_FILES['prize_img']['tmp_name'])) {
@@ -119,11 +132,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 elseif ($fi['size'] > 2*1024*1024) { $msg = 'Изображение должно быть ≤ 2MB!'; $msgType = 'error'; }
                 else {
                     $imgData = 'data:'.$fi['type'].';base64,'.base64_encode(file_get_contents($fi['tmp_name']));
-                    $pdo->prepare("UPDATE kese_prizes SET name=?,emoji=?,probability=?,img_data=? WHERE id=?")->execute([$name,$emoji,$prob,$imgData,$id]);
+                    $pdo->prepare("UPDATE kese_prizes SET name=?,emoji=?,probability=?,img_data=?,is_guide=? WHERE id=?")->execute([$name,$emoji,$prob,$imgData,$isGuide,$id]);
                     $msg = 'Приз обновлён!';
                 }
             } else {
-                $pdo->prepare("UPDATE kese_prizes SET name=?,emoji=?,probability=? WHERE id=?")->execute([$name,$emoji,$prob,$id]);
+                $pdo->prepare("UPDATE kese_prizes SET name=?,emoji=?,probability=?,is_guide=? WHERE id=?")->execute([$name,$emoji,$prob,$isGuide,$id]);
                 $msg = 'Приз обновлён!';
             }
         }
@@ -230,6 +243,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { $msg = 'Неверный текст подтверждения!'; $msgType = 'error'; }
     }
 
+    if ($act === 'save_guide_videos') {
+        $session = (int)($_POST['session_num'] ?? 1);
+        $urls = trim($_POST['video_urls'] ?? '');
+        $pdo->prepare("INSERT INTO kese_session_guide_videos (session_num, video_urls) VALUES (?,?) ON DUPLICATE KEY UPDATE video_urls=VALUES(video_urls)")
+            ->execute([$session, $urls]);
+        $msg = 'Видео ссылки сохранены!';
+        $tab = $session;
+        header('Location: index.php?tab='.$tab.'&msg='.urlencode($msg).'&mt=success');
+        exit;
+    }
+
     $tab = (int)($_POST['tab'] ?? 0);
     header('Location: index.php?tab='.$tab.'&msg='.urlencode($msg).'&mt='.$msgType);
     exit;
@@ -272,6 +296,13 @@ foreach ($ssRows as $ss) {
 }
 for ($s = 1; $s <= 3; $s++) {
     if (!isset($sessionSettings[$s])) $sessionSettings[$s] = ['mode' => 'probability', 'prize_order' => []];
+}
+
+$guideVideos = [];
+$gvRows = $pdo->query("SELECT session_num, video_urls FROM kese_session_guide_videos")->fetchAll(PDO::FETCH_ASSOC);
+foreach ($gvRows as $gv) $guideVideos[$gv['session_num']] = $gv['video_urls'] ?? '';
+for ($s = 1; $s <= 3; $s++) {
+    if (!isset($guideVideos[$s])) $guideVideos[$s] = '';
 }
 
 $totalAttempts  = $pdo->query("SELECT COUNT(*) FROM kese_attempts")->fetchColumn();
@@ -516,6 +547,15 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
 .prize-form label { display:block; font-size:0.75rem; color:#777; margin-bottom:4px; margin-top:10px; }
 .prize-form input[type="text"], .prize-form input[type="number"], .prize-form input[type="file"] { width:100%; padding:7px 10px; background:#252525; border:1px solid #3a3a3a; border-radius:4px; color:#e0e0e0; font-size:0.9rem; outline:none; transition:border-color 0.2s; }
 .prize-form input[type="text"]:focus, .prize-form input[type="number"]:focus { border-color:#d4a017; }
+.prize-form .guide-check-row { display:flex; align-items:center; gap:8px; margin-top:10px; padding:8px 10px; background:rgba(41,182,246,0.07); border:1px solid rgba(41,182,246,0.2); border-radius:6px; cursor:pointer; }
+.prize-form .guide-check-row input[type="checkbox"] { width:16px; height:16px; accent-color:#29b6f6; flex-shrink:0; cursor:pointer; }
+.prize-form .guide-check-row label { color:#29b6f6; font-size:0.8rem; font-weight:600; cursor:pointer; margin:0; }
+.guide-videos-block { margin-top:24px; padding:16px; background:rgba(41,182,246,0.05); border:1px solid rgba(41,182,246,0.18); border-radius:8px; }
+.guide-videos-block h3 { color:#29b6f6; font-size:0.9rem; margin-bottom:6px; }
+.guide-videos-block p  { color:#666; font-size:0.78rem; margin-bottom:10px; line-height:1.5; }
+.guide-videos-block textarea { width:100%; min-height:110px; padding:9px 12px; background:#1a1a1a; border:1px solid #333; border-radius:6px; color:#e0e0e0; font-size:0.85rem; font-family:monospace; resize:vertical; outline:none; }
+.guide-videos-block textarea:focus { border-color:#29b6f6; }
+.guide-badge { display:inline-block; background:rgba(41,182,246,0.15); border:1px solid rgba(41,182,246,0.35); color:#29b6f6; font-size:0.65rem; padding:1px 6px; border-radius:8px; vertical-align:middle; margin-left:4px; }
 .btn { padding:8px 18px; border:none; border-radius:4px; font-size:0.85rem; cursor:pointer; transition:all 0.2s; font-weight:500; }
 .btn-gold    { background:linear-gradient(135deg,#d4a017,#f0c040); color:#0a0604; }
 .btn-gold:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(212,160,23,0.4); }
@@ -748,7 +788,7 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
         <div class="prizes-grid">
           <?php foreach ($sPrizes as $p): ?>
           <div class="prize-card">
-            <div class="slot-label">#<?= $p['slot_num'] ?> · <?= $p['is_active'] ? '<span class="active-badge on">Активен</span>' : '<span class="active-badge off">Выключен</span>' ?></div>
+            <div class="slot-label">#<?= $p['slot_num'] ?> · <?= $p['is_active'] ? '<span class="active-badge on">Активен</span>' : '<span class="active-badge off">Выключен</span>' ?><?= !empty($p['is_guide']) ? ' <span class="guide-badge">🎓 ГАЙД</span>' : '' ?></div>
             <div class="prize-preview-area">
               <div class="prize-thumb"><?php if ($p['img_data']): ?><img src="<?= htmlspecialchars($p['img_data']) ?>"><?php else: ?><?= htmlspecialchars($p['emoji']) ?><?php endif; ?></div>
               <div style="flex:1">
@@ -766,6 +806,10 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
               <input type="text" name="emoji" value="<?= htmlspecialchars($p['emoji']) ?>" maxlength="8">
               <label>Вероятность</label>
               <input type="number" name="probability" value="<?= $p['probability'] ?>" min="0" step="0.1">
+              <div class="guide-check-row" onclick="this.querySelector('input').click(); return false;">
+                <input type="checkbox" name="is_guide" id="guide_<?= $p['id'] ?>" <?= !empty($p['is_guide']) ? 'checked' : '' ?> onclick="event.stopPropagation()">
+                <label for="guide_<?= $p['id'] ?>">🎓 Является гайдом (при выигрыше отправит видео-ссылку)</label>
+              </div>
               <label>Загрузить изображение</label>
               <input type="file" name="prize_img" accept="image/*">
               <div class="form-actions">
@@ -790,9 +834,36 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
             </div>
           </div>
           <?php endforeach; ?>
+      </div><!-- /prizes section -->
+
+      <!-- ─── ГАЙД ВИДЕО ─── -->
+      <div class="section">
+        <div class="guide-videos-block">
+          <h3>🎓 Видео-ссылки для гайд-призов (<?= $s ?>-я сессия)</h3>
+          <p>
+            Вставьте ссылки на видео, каждая с новой строки.<br>
+            При 1-м выигрыше гайд-приза → видео 1, при 2-м → видео 2, и т.д.<br>
+            Если видео <?= $s === 1 ? '3' : 'N' ?>, а человек выигрывает в <?= $s === 1 ? '4' : 'N+1' ?>-й раз — отправляет по кругу с начала.
+          </p>
+          <form method="POST">
+            <input type="hidden" name="action" value="save_guide_videos">
+            <input type="hidden" name="session_num" value="<?= $s ?>">
+            <textarea name="video_urls" placeholder="https://t.me/c/...&#10;https://t.me/c/...&#10;https://t.me/c/..."><?= htmlspecialchars($guideVideos[$s] ?? '') ?></textarea>
+            <?php
+              $videoList = array_values(array_filter(array_map('trim', explode("\n", $guideVideos[$s] ?? ''))));
+              $guideCount = count($videoList);
+            ?>
+            <?php if ($guideCount > 0): ?>
+            <div style="margin:8px 0;color:#29b6f6;font-size:0.8rem">✅ <?= $guideCount ?> видео сохранено</div>
+            <?php endif; ?>
+            <div style="margin-top:10px">
+              <button type="submit" class="btn btn-tg">💾 Сохранить видео</button>
+            </div>
+          </form>
         </div>
       </div>
-    </div>
+
+    </div><!-- /tab-panel -->
     <?php endfor; ?>
 
     <!-- ═══════════════════════════════════════════════════════════════════ -->

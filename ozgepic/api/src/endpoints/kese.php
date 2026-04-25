@@ -45,12 +45,16 @@ function getUserPrize(PDO $pdo, int $userid) {
     return $stmt->fetch() ?: null;
 }
 
-function notifyBotPrize(int $userId, string $prizeName, string $prizeEmoji, ?string $prizeImg): void {
+function notifyBotPrize(int $userId, string $prizeName, string $prizeEmoji, ?string $prizeImg, ?string $guideVideoUrl = null): void {
     $botToken = config('TELEGRAM_BOT_TOKEN');
     if (!$botToken) return;
 
     $text = $prizeEmoji . ' <b>Құттықтаймын!</b>' . "\n\n"
           . '🏆 Сіздің жүлдеңіз: <b>' . htmlspecialchars($prizeName) . '</b>';
+
+    if ($guideVideoUrl) {
+        $text .= "\n\n🎓 <b>Гайд:</b> " . htmlspecialchars($guideVideoUrl);
+    }
 
     if ($prizeImg) {
         $imgData = base64_decode(preg_replace('#^data:image/\w+;base64,#i', '', $prizeImg));
@@ -125,8 +129,33 @@ switch ($action) {
         $s2->execute([$a['prize_id']]);
         $p = $s2->fetch();
         if (!$p) { echo json_encode(['success'=>false,'message'=>'Жүлде табылмады']); return; }
+
+        // ─── Guide video logic ────────────────────────────────────────────
+        $guideVideoUrl = null;
+        if (!empty($p['is_guide'])) {
+            // Count guide wins BEFORE this one (used=1 with is_guide prizes)
+            $gc = $pdo->prepare("
+                SELECT COUNT(*) FROM kese_attempts a
+                JOIN kese_prizes p2 ON p2.id = a.prize_id
+                WHERE a.userid = ? AND a.used = 1 AND p2.is_guide = 1
+            ");
+            $gc->execute([$a['userid']]);
+            $guideWinCount = (int)$gc->fetchColumn();
+
+            $gvs = $pdo->prepare("SELECT video_urls FROM kese_session_guide_videos WHERE session_num = ?");
+            $gvs->execute([$a['session_num']]);
+            $gvRow = $gvs->fetch();
+            if ($gvRow && !empty(trim($gvRow['video_urls']))) {
+                $videos = array_values(array_filter(array_map('trim', explode("\n", $gvRow['video_urls']))));
+                if (!empty($videos)) {
+                    $idx = $guideWinCount % count($videos);
+                    $guideVideoUrl = $videos[$idx];
+                }
+            }
+        }
+
         $pdo->prepare("UPDATE kese_attempts SET used=1, used_at=NOW() WHERE id=?")->execute([$a['id']]);
-        notifyBotPrize((int)$a['userid'], $p['name'], $p['emoji'], $p['img_data']);
+        notifyBotPrize((int)$a['userid'], $p['name'], $p['emoji'], $p['img_data'], $guideVideoUrl);
         echo json_encode([
             'success'=>true,'prize_id'=>$p['id'],'prize_name'=>$p['name'],
             'prize_img'=>$p['img_data'],'prize_emoji'=>$p['emoji']

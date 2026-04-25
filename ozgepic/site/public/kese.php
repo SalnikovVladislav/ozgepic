@@ -98,17 +98,33 @@ $token = $_GET['token'] ?? '';
     transform-origin: center center;
   }
 
-  /* ─── БАНТИК — правый верхний угол общего фона ─── */
-  .bantik {
+  /* ─── БАНТИК ─── */
+  .bantik-wrap-top {
     position: fixed;
-/*     top: 12px; */
-/*     right: 12px; */
-/*     width: 28vw; */
-    max-width: 400px;
-    min-width: 90px;
+    top: 0;
+    right: 0;
+    width: 400px;
+    display: flex;
+    justify-content: flex-end;
     pointer-events: none;
     z-index: 5;
-    filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+  }
+
+  .bantik-wrap-bottom {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 400px;
+    display: flex;
+    justify-content: flex-start;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .bantik {
+    max-width: 250px;
+    min-width: 90px;
+    pointer-events: none;
   }
 
   .bowls-area {
@@ -475,7 +491,12 @@ $token = $_GET['token'] ?? '';
 <body>
 
 <div class="bg-main"></div>
-<img class="bantik" src="assets/images/бантик.png" alt="">
+<div class="bantik-wrap-top">
+  <img class="bantik" src="assets/images/бантик.png" alt="">
+</div>
+<div class="bantik-wrap-bottom">
+  <img class="bantik" src="assets/images/бантик2.png" alt="">
+</div>
 
 <div id="loadingScreen">
   <div class="spinner"></div>
