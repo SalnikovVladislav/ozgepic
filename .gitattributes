@@ -1,0 +1,27 @@
+# Авто-определение текстовых файлов + нормализация в LF в репозитории
+* text=auto eol=lf
+
+# Файлы, которые ОБЯЗАНЫ быть с LF (иначе сломаются на Linux-VPS)
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.conf          text eol=lf
+*.template      text eol=lf
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+.env*           text eol=lf
+
+# Windows-скрипты — наоборот CRLF
+*.ps1           text eol=crlf
+*.cmd           text eol=crlf
+*.bat           text eol=crlf
+
+# Бинарники — не трогать
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.gz            binary
+

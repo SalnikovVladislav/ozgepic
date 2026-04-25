@@ -1,0 +1,16 @@
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Legacy, не относится к altyn-kese (старая плоская версия проекта).
+# Если эти папки больше не нужны — удалите их; пока просто не коммитим.
+/bot/
+/site/
+
+# Мусор
+*.log
+node_modules/
+

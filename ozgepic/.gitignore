@@ -1,0 +1,17 @@
+.env
+*.log
+bot/data/*.json
+sheets-sync/secrets/*.json
+!sheets-sync/secrets/.gitkeep
+node_modules/
+db/data/
+
+# Let's Encrypt / proxy runtime (сертификаты и acme-challenge не коммитим)
+proxy/letsencrypt/*
+!proxy/letsencrypt/.gitkeep
+proxy/certbot-www/*
+!proxy/certbot-www/.gitkeep
+
+# Backups
+backups/
+*.sql.gz

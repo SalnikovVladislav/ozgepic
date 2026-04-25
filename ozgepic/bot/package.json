@@ -1,0 +1,16 @@
+{
+  "name": "altyn-kese-bot",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "mysql2": "^3.11.0",
+    "node-telegram-bot-api": "^0.67.0",
+    "pdf-parse": "^1.1.1"
+  }
+}
+

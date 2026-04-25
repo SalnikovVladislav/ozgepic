@@ -1,0 +1,129 @@
+name: ozgepic
+
+services:
+  # ═══════════════════════════════════════════════════════════════════
+  #  MySQL — внутренняя БД, наружу не торчит
+  # ═══════════════════════════════════════════════════════════════════
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${DB_PORT}:3306"   # localhost-only, для ручного доступа
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  API — приватный backend (PHP-FPM + nginx)
+  #  НЕ экспортирует порты наружу. Доступен только внутри docker-сети.
+  # ═══════════════════════════════════════════════════════════════════
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      API_INTERNAL_TOKEN: ${API_INTERNAL_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL}
+    volumes:
+      - api_logs:/var/log/kese
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  Публичный сайт (PHP-FPM + nginx)
+  #  - kese.php (публичная игра)
+  #  - admin/ (админка, защищена auth.php)
+  # ═══════════════════════════════════════════════════════════════════
+  site:
+    build: ./site
+    restart: unless-stopped
+    environment:
+      # Сайт напрямую в БД ходит только для ADMIN-страниц
+      DB_HOST: ${DB_HOST}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Проксирование публичных запросов в приватный API
+      API_INTERNAL_URL: http://api/kese
+      API_INTERNAL_TOKEN: ${API_INTERNAL_TOKEN}
+      # Admin auth
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS}
+      ADMIN_IP_ONLY: ${ADMIN_IP_ONLY}
+    ports:
+      - "${SITE_BIND:-0.0.0.0}:${SITE_HTTP_PORT}:80"
+    depends_on:
+      - api
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  Telegram bot (Node.js)
+  # ═══════════════════════════════════════════════════════════════════
+  bot:
+    build: ./bot
+    restart: unless-stopped
+    environment:
+      # Доступ к БД — состояния/used-транзакции/настройки теперь хранятся там
+      DB_HOST: ${DB_HOST}
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BOT_ADMIN_IDS: ${BOT_ADMIN_IDS}
+      API_INTERNAL_URL: ${API_INTERNAL_URL}
+      API_INTERNAL_TOKEN: ${API_INTERNAL_TOKEN}
+      TICKET_PRICE: ${TICKET_PRICE}
+      EXPECTED_IIN: ${EXPECTED_IIN}
+      KASPI_URL: ${KASPI_URL}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL}
+      WEBHOOK_PORT: 3007
+    volumes:
+      - ./bot/data:/app/data           # для однократной миграции старых JSON
+      - ./bot/src/templates:/app/src/templates:ro
+      - ./bot/assets:/app/assets:ro    # картинки которые бот шлёт пользователю
+    ports:
+      - "127.0.0.1:${BOT_WEBHOOK_PORT}:3007"
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  # ═══════════════════════════════════════════════════════════════════
+  #  Google Sheets synchronizer (Node.js)
+  # ═══════════════════════════════════════════════════════════════════
+  sheets-sync:
+    build: ./sheets-sync
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api/export
+      API_INTERNAL_TOKEN: ${API_INTERNAL_TOKEN}
+      GSHEETS_SPREADSHEET_ID: ${GSHEETS_SPREADSHEET_ID}
+      GSHEETS_SHEET_NAME: ${GSHEETS_SHEET_NAME}
+      GSHEETS_INTERVAL_MS: ${GSHEETS_INTERVAL_MS}
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/service-account.json
+    volumes:
+      - ./sheets-sync/secrets:/app/secrets:ro
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  api_logs:
+
