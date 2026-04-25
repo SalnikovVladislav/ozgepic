@@ -133,7 +133,7 @@ switch ($action) {
         // ─── Guide video logic ────────────────────────────────────────────
         $guideVideoUrl = null;
         if (!empty($p['is_guide'])) {
-            // Count guide wins BEFORE this one (used=1 with is_guide prizes)
+            // Count guide wins BEFORE this one — globally across ALL sessions
             $gc = $pdo->prepare("
                 SELECT COUNT(*) FROM kese_attempts a
                 JOIN kese_prizes p2 ON p2.id = a.prize_id
@@ -142,8 +142,9 @@ switch ($action) {
             $gc->execute([$a['userid']]);
             $guideWinCount = (int)$gc->fetchColumn();
 
-            $gvs = $pdo->prepare("SELECT video_urls FROM kese_session_guide_videos WHERE session_num = ?");
-            $gvs->execute([$a['session_num']]);
+            // Global video list (session_num=0)
+            $gvs = $pdo->prepare("SELECT video_urls FROM kese_session_guide_videos WHERE session_num = 0");
+            $gvs->execute();
             $gvRow = $gvs->fetch();
             if ($gvRow && !empty(trim($gvRow['video_urls']))) {
                 $videos = array_values(array_filter(array_map('trim', explode("\n", $gvRow['video_urls']))));

@@ -65,9 +65,8 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS kese_session_guide_videos (
     video_urls TEXT NULL,
     UNIQUE KEY uq_session (session_num)
 ) CHARACTER SET utf8mb4");
-for ($s = 1; $s <= 3; $s++) {
-    $pdo->prepare("INSERT IGNORE INTO kese_session_guide_videos (session_num, video_urls) VALUES (?, '')")->execute([$s]);
-}
+// session_num=0 = global shared videos (used for all sessions)
+$pdo->prepare("INSERT IGNORE INTO kese_session_guide_videos (session_num, video_urls) VALUES (0, '')")->execute();
 
 // Seed prizes
 $cnt = $pdo->query("SELECT COUNT(*) FROM kese_prizes")->fetchColumn();
@@ -244,12 +243,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($act === 'save_guide_videos') {
-        $session = (int)($_POST['session_num'] ?? 1);
         $urls = trim($_POST['video_urls'] ?? '');
-        $pdo->prepare("INSERT INTO kese_session_guide_videos (session_num, video_urls) VALUES (?,?) ON DUPLICATE KEY UPDATE video_urls=VALUES(video_urls)")
-            ->execute([$session, $urls]);
+        $tab  = (int)($_POST['tab'] ?? 0);
+        $pdo->prepare("INSERT INTO kese_session_guide_videos (session_num, video_urls) VALUES (0,?) ON DUPLICATE KEY UPDATE video_urls=VALUES(video_urls)")
+            ->execute([$urls]);
         $msg = 'Видео ссылки сохранены!';
-        $tab = $session;
         header('Location: index.php?tab='.$tab.'&msg='.urlencode($msg).'&mt=success');
         exit;
     }
@@ -298,12 +296,9 @@ for ($s = 1; $s <= 3; $s++) {
     if (!isset($sessionSettings[$s])) $sessionSettings[$s] = ['mode' => 'probability', 'prize_order' => []];
 }
 
-$guideVideos = [];
-$gvRows = $pdo->query("SELECT session_num, video_urls FROM kese_session_guide_videos")->fetchAll(PDO::FETCH_ASSOC);
-foreach ($gvRows as $gv) $guideVideos[$gv['session_num']] = $gv['video_urls'] ?? '';
-for ($s = 1; $s <= 3; $s++) {
-    if (!isset($guideVideos[$s])) $guideVideos[$s] = '';
-}
+$guideVideos = '';
+$gvRow = $pdo->query("SELECT video_urls FROM kese_session_guide_videos WHERE session_num=0")->fetch();
+if ($gvRow) $guideVideos = $gvRow['video_urls'] ?? '';
 
 $totalAttempts  = $pdo->query("SELECT COUNT(*) FROM kese_attempts")->fetchColumn();
 $usedAttempts   = $pdo->query("SELECT COUNT(*) FROM kese_attempts WHERE used=1")->fetchColumn();
@@ -695,7 +690,35 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
         </div>
         <?php endfor; ?>
       </div>
-    </div>
+
+      <!-- ─── ГАЙД ВИДЕО (общее для всех сессий) ─── -->
+      <div class="section">
+        <div class="guide-videos-block">
+          <h3>🎓 Видео-ссылки для гайд-призов (общие для всех сессий)</h3>
+          <p>
+            Вставьте ссылки на видео, каждая с новой строки.<br>
+            Счётчик <b>глобальный</b>: если пользователь выиграл гайд в сессии 1, потом в сессии 2 — он получит видео 1, потом видео 2, потом видео 3 и т.д.<br>
+            Если видео закончились — начинается с начала по кругу.
+          </p>
+          <form method="POST">
+            <input type="hidden" name="action" value="save_guide_videos">
+            <input type="hidden" name="tab" value="0">
+            <textarea name="video_urls" placeholder="https://t.me/c/...&#10;https://t.me/c/...&#10;https://t.me/c/..."><?= htmlspecialchars($guideVideos) ?></textarea>
+            <?php
+              $videoList  = array_values(array_filter(array_map('trim', explode("\n", $guideVideos))));
+              $guideCount = count($videoList);
+            ?>
+            <?php if ($guideCount > 0): ?>
+            <div style="margin:8px 0;color:#29b6f6;font-size:0.8rem">✅ <?= $guideCount ?> видео сохранено</div>
+            <?php endif; ?>
+            <div style="margin-top:10px">
+              <button type="submit" class="btn btn-tg">💾 Сохранить видео</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div><!-- /tab-0 -->
 
     <!-- Session 1,2,3 Tabs -->
     <?php for ($s = 1; $s <= 3; $s++):
@@ -837,32 +860,6 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
       </div><!-- /prizes-grid -->
       </div><!-- /prizes section -->
 
-      <!-- ─── ГАЙД ВИДЕО ─── -->
-      <div class="section">
-        <div class="guide-videos-block">
-          <h3>🎓 Видео-ссылки для гайд-призов (<?= $s ?>-я сессия)</h3>
-          <p>
-            Вставьте ссылки на видео, каждая с новой строки.<br>
-            При 1-м выигрыше гайд-приза → видео 1, при 2-м → видео 2, и т.д.<br>
-            Если видео <?= $s === 1 ? '3' : 'N' ?>, а человек выигрывает в <?= $s === 1 ? '4' : 'N+1' ?>-й раз — отправляет по кругу с начала.
-          </p>
-          <form method="POST">
-            <input type="hidden" name="action" value="save_guide_videos">
-            <input type="hidden" name="session_num" value="<?= $s ?>">
-            <textarea name="video_urls" placeholder="https://t.me/c/...&#10;https://t.me/c/...&#10;https://t.me/c/..."><?= htmlspecialchars($guideVideos[$s] ?? '') ?></textarea>
-            <?php
-              $videoList = array_values(array_filter(array_map('trim', explode("\n", $guideVideos[$s] ?? ''))));
-              $guideCount = count($videoList);
-            ?>
-            <?php if ($guideCount > 0): ?>
-            <div style="margin:8px 0;color:#29b6f6;font-size:0.8rem">✅ <?= $guideCount ?> видео сохранено</div>
-            <?php endif; ?>
-            <div style="margin-top:10px">
-              <button type="submit" class="btn btn-tg">💾 Сохранить видео</button>
-            </div>
-          </form>
-        </div>
-      </div>
 
     </div><!-- /tab-panel -->
     <?php endfor; ?>
