@@ -834,6 +834,7 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
             </div>
           </div>
           <?php endforeach; ?>
+      </div><!-- /prizes-grid -->
       </div><!-- /prizes section -->
 
       <!-- ─── ГАЙД ВИДЕО ─── -->
