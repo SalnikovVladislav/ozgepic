@@ -52,12 +52,12 @@ module.exports = {
   genericError:        '❌ Қате. Кейінірек қайталаңыз.',
 
   // Раздача результатов
-  resultsHeader: (sum, count, groupLink) =>
+  resultsHeader: (sum, count) =>
       `Чек қабылданды✅\n\n` +
       `SSS Fit марафонына сәтті қосылуыңызбен құттықтаймыз!\n\n` +
       `Барлық сабақтар төмендегі жабық каналға салынады.\n\n` +
       `ЖАБЫҚ КАНАЛҒА ҚОСЫЛУ ҮШІН👇🏻\n\n` +
-      `${groupLink}\n\n` +
+      `https://t.me/+tlYXhRgU0h1mZjEy\n\n` +
       `Сілтеме тек 1 рет ашылады. Достарыңызға сыйласаңыз болады❗👇🏻\n\n` +
       `🎟 Ойын саны: ${count}`,
   pickBowls:

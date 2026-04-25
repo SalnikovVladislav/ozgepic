@@ -52,8 +52,6 @@ function register(bot) {
       await sleep(1000);
       if (s.step === 'phone')    bot.sendMessage(chatId, messages.askPhone);
       if (s.step === 'fullname') bot.sendMessage(chatId, messages.askFullname);
-      if (s.step === 'address')  bot.sendMessage(chatId, messages.askAddress);
-      if (s.step === 'postcode') bot.sendMessage(chatId, messages.askPostcode);
     }
     if (q.data === 'restart') {
       bot.answerCallbackQuery(q.id, { text: '🔄 Қайта' });
@@ -79,47 +77,27 @@ function register(bot) {
       const parts = msg.text.trim().split(/\s+/);
       if (parts.length < 2) return bot.sendMessage(chatId, messages.needFullname);
       updateUserState(userId, {
-        name: parts[0], surname: parts.slice(1).join(' '), step: 'address'
+        name: parts[0], surname: parts.slice(1).join(' '), step: 'register'
       });
-      await sleep(2000);
-      return bot.sendMessage(chatId, messages.askAddress);
-    }
-    if (state.step === 'address') {
-      const address = msg.text.trim();
-      if (!address) return bot.sendMessage(chatId, messages.askAddress);
-      updateUserState(userId, { address, step: 'postcode' });
-      await sleep(1500);
-      return bot.sendMessage(chatId, messages.askPostcode);
-    }
-    if (state.step === 'postcode') {
-      const postcode = (msg.text || '').trim();
-      if (!/^\d{5,6}$/.test(postcode)) {
-        return bot.sendMessage(chatId, messages.needPostcode);
-      }
-      // Проверяем что все данные анкеты собраны (защита от потери state при рестарте бота)
+
+      // Проверяем что все данные собраны
       if (!state.phone) {
         updateUserState(userId, { step: 'phone' });
         return bot.sendMessage(chatId, '⚠️ Деректер жоғалды. Телефон нөміріңізді қайта енгізіңіз:');
       }
-      if (!state.name) {
-        updateUserState(userId, { step: 'fullname' });
-        return bot.sendMessage(chatId, '⚠️ Деректер жоғалды. Толық атыңызды қайта енгізіңіз:');
-      }
-      if (!state.address) {
-        updateUserState(userId, { step: 'address' });
-        return bot.sendMessage(chatId, '⚠️ Деректер жоғалды. Мекенжайыңызды қайта енгізіңіз:');
-      }
-      console.log(`[register] userId=${userId} phone=${state.phone} name=${state.name} address=${state.address} postcode=${postcode}`);
+
+      const name   = parts[0];
+      const surname = parts.slice(1).join(' ');
+      console.log(`[register] userId=${userId} phone=${state.phone} name=${name}`);
       try {
         const r = await api.register({
-          userid: userId, phone: state.phone, name: state.name,
-          surname: state.surname, address: state.address, postcode,
+          userid: userId, phone: state.phone, name, surname,
+          address: '', postcode: '',
         });
         if (!r.success) return bot.sendMessage(chatId, '❌ ' + r.message);
 
         await bot.sendMessage(chatId, messages.dataAccepted);
         await sleep(2000);
-        // Атомарно «захватываем» чек до создания попыток
         const claimed = await claimTransaction(state.transactionNumber);
         if (!claimed) {
           return bot.sendMessage(chatId, messages.receiptInvalid(config.TICKET_PRICE));
@@ -142,6 +120,7 @@ function register(bot) {
         console.error('register err:', e.message);
         bot.sendMessage(chatId, messages.genericError);
       }
+      return;
     }
   });
 
