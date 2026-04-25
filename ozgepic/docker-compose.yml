@@ -5,7 +5,7 @@ services:
   #  MySQL — внутренняя БД, наружу не торчит
   # ═══════════════════════════════════════════════════════════════════
   db:
-    image: mysql:8.0
+    image: mysql:8.0.28
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
