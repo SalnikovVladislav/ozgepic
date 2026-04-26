@@ -50,7 +50,6 @@ $token = $_GET['token'] ?? '';
     max-width: 370px;
     display: block;
     margin: 12px auto 8px;
-    filter: drop-shadow(0 4px 18px rgba(0,0,0,0.65));
   }
 
   /* ─── DESCRIPTION BLOCK ─── */
@@ -122,6 +121,12 @@ $token = $_GET['token'] ?? '';
   }
 
   .bantik {
+    max-width: 150px;
+    min-width: 90px;
+    pointer-events: none;
+  }
+
+  .bantik2 {
     max-width: 250px;
     min-width: 90px;
     pointer-events: none;
@@ -495,7 +500,7 @@ $token = $_GET['token'] ?? '';
   <img class="bantik" src="assets/images/бантик.png" alt="">
 </div>
 <div class="bantik-wrap-bottom">
-  <img class="bantik" src="assets/images/бантик2.png" alt="">
+  <img class="bantik2" src="assets/images/бантик2.png" alt="">
 </div>
 
 <div id="loadingScreen">
