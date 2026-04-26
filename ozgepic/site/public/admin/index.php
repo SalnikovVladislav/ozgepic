@@ -803,6 +803,19 @@ body { font-family:'Segoe UI',sans-serif; background:#0f0f0f; color:#e0e0e0; min
           </div>
 
           <div style="margin-top:20px">
+            <div class="queue-mode-toggle" id="queue-toggle-<?= $s ?>" style="margin-bottom:14px;<?= $sMode !== 'sequential' ? 'display:none' : '' ?>">
+              <input type="hidden" name="queue_mode" id="queue-mode-hidden-<?= $s ?>" value="<?= $sQueueMode ?>">
+              <div style="margin-bottom:8px;color:#aaa;font-size:0.85rem">🔁 Тип очереди:</div>
+              <div class="mode-selector">
+                <button type="button" class="mode-btn <?= $sQueueMode === 'personal' ? 'active-seq' : '' ?>" id="btn-qpersonal-<?= $s ?>" onclick="setQueueMode(<?= $s ?>, 'personal')">👤 Персональная</button>
+                <button type="button" class="mode-btn <?= $sQueueMode === 'global' ? 'active-prob' : '' ?>"  id="btn-qglobal-<?= $s ?>"  onclick="setQueueMode(<?= $s ?>, 'global')">🌐 Общая</button>
+              </div>
+              <div style="margin-top:8px;font-size:0.78rem;color:#666" id="queue-mode-hint-<?= $s ?>">
+                <?= $sQueueMode === 'global'
+                    ? '🌐 Все пользователи идут по одной общей очереди (один счётчик на всех)'
+                    : '👤 Каждый пользователь проходит очередь с начала независимо' ?>
+              </div>
+            </div>
             <button type="submit" class="btn btn-orange" onclick="prepareSubmit(<?= $s ?>)">💾 Сохранить режим</button>
           </div>
         </form>
