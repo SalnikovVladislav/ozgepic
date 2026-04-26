@@ -7,8 +7,21 @@ const CELEBRATION_IMG = path.resolve(__dirname, '..', 'assets', 'celebration.jpg
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+const INVITE_CHAT_ID = -1003850082313;
+
+async function generateInviteLink(bot) {
+  try {
+    const res = await bot.createChatInviteLink(INVITE_CHAT_ID, { member_limit: 1 });
+    return res.invite_link;
+  } catch (e) {
+    console.error('generateInviteLink error:', e.message);
+    return 'https://t.me/+c_mJZ_XN-YpkZGUy';
+  }
+}
+
 async function sendKeseResults(bot, chatId, results, sum, attemptsCount) {
-  await bot.sendMessage(chatId, messages.resultsHeader(sum, attemptsCount));
+  const inviteLink = await generateInviteLink(bot);
+  await bot.sendMessage(chatId, messages.resultsHeader(sum, attemptsCount, inviteLink));
   await sleep(3000);
 
   if (fs.existsSync(CELEBRATION_IMG)) {

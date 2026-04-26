@@ -173,8 +173,8 @@ function register(bot) {
           transactionNumber: result.transactionNumber,
           sum: result.sum, attemptsCount: result.attemptsCount,
         });
-        await sleep(2000); bot.sendMessage(chatId, messages.registerIntro);
-        await sleep(3000); bot.sendMessage(chatId, messages.askPhone);
+        await sleep(2000);
+        bot.sendMessage(chatId, messages.askPhone);
       }
     } catch (e) {
       console.error('doc handler err:', e.message);
