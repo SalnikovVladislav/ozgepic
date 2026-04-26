@@ -58,6 +58,7 @@ for ($s = 1; $s <= 3; $s++) {
 }
 
 try { $pdo->exec("ALTER TABLE kese_prizes ADD COLUMN is_guide TINYINT NOT NULL DEFAULT 0"); } catch(PDOException $e){}
+try { $pdo->exec("ALTER TABLE kese_session_settings ADD COLUMN queue_mode ENUM('personal','global') NOT NULL DEFAULT 'personal'"); } catch(PDOException $e){}
 
 $pdo->exec("CREATE TABLE IF NOT EXISTS kese_session_guide_videos (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -154,16 +155,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($act === 'save_session_mode') {
-        $session = (int)($_POST['session_num'] ?? 1);
-        $mode    = in_array($_POST['mode'] ?? '', ['probability','sequential']) ? $_POST['mode'] : 'probability';
+        $session    = (int)($_POST['session_num'] ?? 1);
+        $mode       = in_array($_POST['mode'] ?? '', ['probability','sequential']) ? $_POST['mode'] : 'probability';
+        $queueMode  = in_array($_POST['queue_mode'] ?? '', ['personal','global']) ? $_POST['queue_mode'] : 'personal';
         $rawOrder   = trim($_POST['prize_order_json'] ?? '[]');
         $prizeOrder = json_decode($rawOrder, true);
         if (!is_array($prizeOrder)) $prizeOrder = [];
         $prizeOrder = array_values(array_map('intval', $prizeOrder));
-        $pdo->prepare("INSERT INTO kese_session_settings (session_num,mode,prize_order) VALUES (?,?,?) ON DUPLICATE KEY UPDATE mode=VALUES(mode), prize_order=VALUES(prize_order)")
-            ->execute([$session, $mode, json_encode($prizeOrder)]);
+        $pdo->prepare("INSERT INTO kese_session_settings (session_num,mode,prize_order,queue_mode) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE mode=VALUES(mode), prize_order=VALUES(prize_order), queue_mode=VALUES(queue_mode)")
+            ->execute([$session, $mode, json_encode($prizeOrder), $queueMode]);
         $msg = ($mode === 'sequential')
-            ? 'Последовательный режим сохранён! ' . count($prizeOrder) . ' призов задан порядок.'
+            ? 'Последовательный режим сохранён! ' . count($prizeOrder) . ' призов задан порядок. Тип очереди: ' . ($queueMode === 'global' ? 'Общая' : 'Персональная') . '.'
             : 'Режим вероятностей сохранён!';
     }
 
@@ -290,10 +292,10 @@ $sessionSettings = [];
 $ssRows = $pdo->query("SELECT * FROM kese_session_settings ORDER BY session_num")->fetchAll(PDO::FETCH_ASSOC);
 foreach ($ssRows as $ss) {
     $order = !empty($ss['prize_order']) ? (json_decode($ss['prize_order'], true) ?: []) : [];
-    $sessionSettings[$ss['session_num']] = ['mode' => $ss['mode'], 'prize_order' => $order];
+    $sessionSettings[$ss['session_num']] = ['mode' => $ss['mode'], 'prize_order' => $order, 'queue_mode' => $ss['queue_mode'] ?? 'personal'];
 }
 for ($s = 1; $s <= 3; $s++) {
-    if (!isset($sessionSettings[$s])) $sessionSettings[$s] = ['mode' => 'probability', 'prize_order' => []];
+    if (!isset($sessionSettings[$s])) $sessionSettings[$s] = ['mode' => 'probability', 'prize_order' => [], 'queue_mode' => 'personal'];
 }
 
 $guideVideos = '';
@@ -1381,6 +1383,18 @@ function setMode(session, mode) {
   document.getElementById('info-prob-'+session).style.display = mode === 'probability' ? '' : 'none';
   document.getElementById('info-seq-'+session).style.display  = mode === 'sequential'  ? '' : 'none';
   document.getElementById('seq-builder-'+session).classList.toggle('visible', mode === 'sequential');
+  const queueToggle = document.getElementById('queue-toggle-'+session);
+  if (queueToggle) queueToggle.style.display = mode === 'sequential' ? '' : 'none';
+}
+
+function setQueueMode(session, queueMode) {
+  document.getElementById('queue-mode-hidden-'+session).value = queueMode;
+  document.getElementById('btn-qpersonal-'+session).className = 'mode-btn' + (queueMode === 'personal' ? ' active-seq' : '');
+  document.getElementById('btn-qglobal-'+session).className   = 'mode-btn' + (queueMode === 'global'   ? ' active-prob' : '');
+  const hint = document.getElementById('queue-mode-hint-'+session);
+  if (hint) hint.textContent = queueMode === 'global'
+    ? '🌐 Все пользователи идут по одной общей очереди (один счётчик на всех)'
+    : '👤 Каждый пользователь проходит очередь с начала независимо';
 }
 
 // ─── ORDER BUILDER ────────────────────────────────────────────────────────────

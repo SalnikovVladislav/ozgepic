@@ -12,9 +12,9 @@ function getSessionSettings(PDO $pdo, int $session): array {
     $stmt = $pdo->prepare("SELECT * FROM kese_session_settings WHERE session_num = ?");
     $stmt->execute([$session]);
     $row = $stmt->fetch();
-    if (!$row) return ['mode' => 'probability', 'prize_order' => []];
+    if (!$row) return ['mode' => 'probability', 'prize_order' => [], 'queue_mode' => 'personal'];
     $order = !empty($row['prize_order']) ? (json_decode($row['prize_order'], true) ?: []) : [];
-    return ['mode' => $row['mode'], 'prize_order' => $order];
+    return ['mode' => $row['mode'], 'prize_order' => $order, 'queue_mode' => $row['queue_mode'] ?? 'personal'];
 }
 
 function getNextGlobalAttemptNumber(PDO $pdo): int {
@@ -231,8 +231,15 @@ switch ($action) {
         if (!$selected) {
             $ss = getSessionSettings($pdo, $session);
             if ($ss['mode'] === 'sequential' && !empty($ss['prize_order'])) {
-                $pc = $pdo->prepare("SELECT COUNT(*) FROM kese_attempts WHERE userid = ? AND session_num = ?");
-                $pc->execute([$userid, $session]);
+                if (($ss['queue_mode'] ?? 'personal') === 'global') {
+                    // Общая очередь — счётчик по всем попыткам в этой сессии
+                    $pc = $pdo->prepare("SELECT COUNT(*) FROM kese_attempts WHERE session_num = ?");
+                    $pc->execute([$session]);
+                } else {
+                    // Персональная очередь — счётчик только для этого пользователя
+                    $pc = $pdo->prepare("SELECT COUNT(*) FROM kese_attempts WHERE userid = ? AND session_num = ?");
+                    $pc->execute([$userid, $session]);
+                }
                 $idx = ((int)$pc->fetchColumn()) % count($ss['prize_order']);
                 $s = $pdo->prepare("SELECT * FROM kese_prizes WHERE id = ? AND is_active = 1");
                 $s->execute([$ss['prize_order'][$idx]]);
